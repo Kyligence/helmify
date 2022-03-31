@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/arttor/helmify/pkg/processor/crossplane"
 	"github.com/sirupsen/logrus"
 
 	"github.com/arttor/helmify/pkg/config"
@@ -57,6 +58,8 @@ func Start(input io.Reader, config config.Config) error {
 		webhook.Certificate(),
 		webhook.ValidatingWebhook(),
 		webhook.MutatingWebhook(),
+		crossplane.NewXRD(),
+		crossplane.NewComposition(),
 	).WithDefaultProcessor(processor.Default())
 	for obj := range objects {
 		appCtx.Add(obj)
