@@ -26,6 +26,8 @@ spec:
       labels:
         name: fluentd-elasticsearch
     spec:
+      imagePullSecrets:
+      - name: ""
       tolerations:
       # this toleration is to have the daemonset runnable on master nodes
       # remove it if your masters can't run pods
