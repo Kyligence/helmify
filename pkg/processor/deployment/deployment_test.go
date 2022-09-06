@@ -27,6 +27,9 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      imagePullSecrets:
+      - name: xuanwu-web-secret
+      - name: ""
       containers:
       - args:
         - --secure-listen-address=0.0.0.0:8443
