@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/arttor/helmify/pkg/cluster"
 	"github.com/arttor/helmify/pkg/helmify"
 	yamlformat "github.com/arttor/helmify/pkg/yaml"
 	"github.com/pkg/errors"
@@ -55,6 +56,7 @@ func (c cert) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstructure
 		dns := dnsName.(string)
 		templatedDns := appMeta.TemplatedString(dns)
 		processedDns := strings.ReplaceAll(templatedDns, appMeta.Namespace(), "{{ .Release.Namespace }}")
+		processedDns = strings.ReplaceAll(processedDns, cluster.DefaultDomain, fmt.Sprintf("{{ .Values.%s }}", cluster.DomainKey))
 		processedDnsNames = append(processedDnsNames, processedDns)
 	}
 	err = unstructured.SetNestedSlice(obj.Object, processedDnsNames, "spec", "dnsNames")

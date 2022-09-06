@@ -3,6 +3,7 @@ package crd
 import (
 	"bytes"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"strings"
 
@@ -21,13 +22,12 @@ const crdTeml = `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: %[1]s
-  annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "%[2]s.fullname" . }}-%[4]s
-    controller-gen.kubebuilder.io/version: v0.7.0
+%[3]s
   labels:
+%[4]s
   {{- include "%[2]s.labels" . | nindent 4 }}
 spec:
-%[3]s
+%[5]s
 status:
   acceptedNames:
     kind: ""
@@ -53,12 +53,53 @@ func (c crd) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstructured
 	if obj.GroupVersionKind() != crdGVC {
 		return false, nil, nil
 	}
-
-	certName, _, err := unstructured.NestedString(obj.Object, "metadata", "annotations", "cert-manager.io/inject-ca-from")
-	if err != nil {
-		return true, nil, errors.Wrap(err, "unable get crd certName")
+	name, ok, err := unstructured.NestedString(obj.Object, "spec", "names", "singular")
+	if err != nil || !ok {
+		return true, nil, errors.Wrap(err, "unable to create crd template")
 	}
-	certName = strings.TrimPrefix(certName, appMeta.Namespace()+"/"+appMeta.ChartName()+"-")
+	if appMeta.Config().Crd {
+		logrus.WithField("crd", name).Info("put CRD under crds dir without templating")
+		// do not template CRDs when placed to crds dir
+		res, err := yaml.Marshal(obj)
+		if err != nil {
+			return true, nil, errors.Wrap(err, "unable to create crd template")
+		}
+		return true, &result{
+			name: name + "-crd.yaml",
+			data: res,
+		}, nil
+	}
+
+	var labels, annotations string
+	if len(obj.GetAnnotations()) != 0 {
+		a := obj.GetAnnotations()
+		certName := a["cert-manager.io/inject-ca-from"]
+		if certName != "" {
+			certName = strings.TrimPrefix(certName, appMeta.Namespace()+"/")
+			certName = appMeta.TrimName(certName)
+			a["cert-manager.io/inject-ca-from"] = fmt.Sprintf(`{{ .Release.Namespace }}/{{ include "%[1]s.fullname" . }}-%[2]s`, appMeta.ChartName(), certName)
+		}
+		annotations, err = yamlformat.Marshal(map[string]interface{}{"annotations": a}, 2)
+		if err != nil {
+			return true, nil, err
+		}
+	}
+	if len(obj.GetLabels()) != 0 {
+		l := obj.GetLabels()
+		// provided by Helm
+		delete(l, "app.kubernetes.io/name")
+		delete(l, "app.kubernetes.io/instance")
+		delete(l, "app.kubernetes.io/version")
+		delete(l, "app.kubernetes.io/managed-by")
+		delete(l, "helm.sh/chart")
+		if len(l) != 0 {
+			labels, err = yamlformat.Marshal(l, 4)
+			if err != nil {
+				return true, nil, err
+			}
+			labels = strings.Trim(labels, "\n")
+		}
+	}
 
 	specUnstr, ok, err := unstructured.NestedMap(obj.Object, "spec")
 	if err != nil || !ok {
@@ -82,15 +123,13 @@ func (c crd) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstructured
 		}
 	}
 
-	versions, _ := yaml.Marshal(spec)
-	versions = yamlformat.Indent(versions, 2)
-	versions = bytes.TrimRight(versions, "\n ")
+	specYaml, _ := yaml.Marshal(spec)
+	specYaml = yamlformat.Indent(specYaml, 2)
+	specYaml = bytes.TrimRight(specYaml, "\n ")
 
-	res := fmt.Sprintf(crdTeml, obj.GetName(), appMeta.ChartName(), string(versions), certName)
-	name, _, err := unstructured.NestedString(obj.Object, "spec", "names", "singular")
-	if err != nil || !ok {
-		return true, nil, errors.Wrap(err, "unable to create crd template")
-	}
+	res := fmt.Sprintf(crdTeml, obj.GetName(), appMeta.ChartName(), annotations, labels, string(specYaml))
+	res = strings.ReplaceAll(res, "\n\n", "\n")
+
 	return true, &result{
 		name: name + "-crd.yaml",
 		data: []byte(res),

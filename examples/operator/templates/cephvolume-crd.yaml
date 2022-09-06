@@ -3,9 +3,10 @@ kind: CustomResourceDefinition
 metadata:
   name: cephvolumes.test.example.com
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "operator.fullname" . }}-serving-cert
-    controller-gen.kubebuilder.io/version: v0.7.0
+    cert-manager.io/inject-ca-from: '{{ .Release.Namespace }}/{{ include "operator.fullname" . }}-serving-cert'
+    example-annotation: xyz
   labels:
+    example-label: my-app
   {{- include "operator.labels" . | nindent 4 }}
 spec:
   group: test.example.com

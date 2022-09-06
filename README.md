@@ -67,27 +67,31 @@ Usage:
 
 ```helmify [flags] CHART_NAME```  -  `CHART_NAME` is optional. Default is 'chart'. Can be a directory, e.g. 'deploy/charts/mychart'.
 
-| flag | description | sample |
+| flag | description                                                                                                                                                                                                 | sample |
 | --- | --- | --- |
-| -h -help | Prints help | `helmify -h`|
-| -v | Enable verbose output. Prints WARN and INFO. | `helmify -v`|
-| -vv | Enable very verbose output. Also prints DEBUG. | `helmify -vv`|
-| -version | Print helmify version. | `helmify -version`|
+| -h -help | Prints help                                                                                                                                                                                                 | `helmify -h`|
+| -v | Enable verbose output. Prints WARN and INFO.                                                                                                                                                                | `helmify -v`|
+| -vv | Enable very verbose output. Also prints DEBUG.                                                                                                                                                              | `helmify -vv`|
+| -version | Print helmify version.                                                                                                                                                                                      | `helmify -version`|
+| -crd-dir | Place crds in their own folder per Helm 3 [docs](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#method-1-let-helm-do-it-for-you). Caveat: CRDs templating is not supported by Helm. | `helmify -crd-dir`|
 
 ## Status
 Supported k8s resources:
 - deployment
+- daemonset
 - service, Ingress
 - PersistentVolumeClaim
 - RBAC (serviceaccount, (cluster-)role, (cluster-)rolebinding)
 - configs (configmap, secret)
 - webhooks (cert, issuer, ValidatingWebhookConfiguration)
+- custom resource definitions 
 
 ### Known issues
 - Helmify will not overwrite `Chart.yaml` file if presented. Done on purpose.
 - Helmify will not delete existing template files, only overwrite.
 - Helmify overwrites templates and values files on every run. 
-  This meas that all your manual changes in helm template files will be lost on the next run.
+  This means that all your manual changes in helm template files will be lost on the next run.
+- if switching between the using the `-crd-dir` flag it is better to delete and regenerate the from scratch to ensure crds are not accidentally spliced/formatted into the same chart. Bear in mind you will want to update your `Chart.yaml` thereafter.
   
 ## Develop
 To support a new type of k8s object template:

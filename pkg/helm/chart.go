@@ -4,7 +4,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/arttor/helmify/pkg/cluster"
 	"github.com/arttor/helmify/pkg/helmify"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -27,14 +29,15 @@ type output struct{}
 //    └── templates/    	# The template files
 //        └── _helpers.tp   # Helm default template partials
 // Overwrites existing values.yaml and templates in templates dir on every run.
-func (o output) Create(chartDir, chartName string, templates []helmify.Template) error {
-	err := initChartDir(chartDir, chartName)
+func (o output) Create(chartDir, chartName string, crd bool, templates []helmify.Template) error {
+	err := initChartDir(chartDir, chartName, crd)
 	if err != nil {
 		return err
 	}
 	// group templates into files
 	files := map[string][]helmify.Template{}
 	values := helmify.Values{}
+	values[cluster.DomainKey] = cluster.DefaultDomain
 	for _, template := range templates {
 		file := files[template.Filename()]
 		file = append(file, template)
@@ -46,7 +49,7 @@ func (o output) Create(chartDir, chartName string, templates []helmify.Template)
 	}
 	cDir := filepath.Join(chartDir, chartName)
 	for filename, tpls := range files {
-		err = overwriteTemplateFile(filename, cDir, tpls)
+		err = overwriteTemplateFile(filename, cDir, crd, tpls)
 		if err != nil {
 			return err
 		}
@@ -58,8 +61,22 @@ func (o output) Create(chartDir, chartName string, templates []helmify.Template)
 	return nil
 }
 
-func overwriteTemplateFile(filename, chartDir string, templates []helmify.Template) error {
-	file := filepath.Join(chartDir, "templates", filename)
+func overwriteTemplateFile(filename, chartDir string, crd bool, templates []helmify.Template) error {
+	// pull in crd-dir setting and siphon crds into folder
+	var subdir string
+	if strings.Contains(filename, "crd") && crd {
+		subdir = "crds"
+		// create "crds" if not exists
+		if _, err := os.Stat(filepath.Join(chartDir, "crds")); os.IsNotExist(err) {
+			err = os.MkdirAll(filepath.Join(chartDir, "crds"), 0750)
+			if err != nil {
+				return errors.Wrap(err, "unable create crds dir")
+			}
+		}
+	} else {
+		subdir = "templates"
+	}
+	file := filepath.Join(chartDir, subdir, filename)
 	f, err := os.OpenFile(file, os.O_APPEND|os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return errors.Wrap(err, "unable to open "+file)
