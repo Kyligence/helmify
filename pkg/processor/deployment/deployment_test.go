@@ -28,7 +28,6 @@ spec:
         control-plane: controller-manager
     spec:
       imagePullSecrets:
-      - name: xuanwu-web-secret
       - name: ""
       containers:
       - args:

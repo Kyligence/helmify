@@ -191,7 +191,20 @@ func processPodSpec(name string, appMeta helmify.AppMetadata, pod *corev1.PodSpe
 	pod.ServiceAccountName = appMeta.TemplatedName(pod.ServiceAccountName)
 
 	for i, s := range pod.ImagePullSecrets {
-		pod.ImagePullSecrets[i].Name = appMeta.TemplatedName(s.Name)
+		if s.Name == "" {
+			commonSecretTpl, err := values.Add(string(s.Name), name, "imagePullSecret")
+			if err != nil {
+				return values, err
+			}
+			commonSecret, err := yamlformat.Marshal(map[string]interface{}{"imagePullSecret": commonSecretTpl}, 2)
+			if err != nil {
+				return values, err
+			}
+			commonSecret = strings.ReplaceAll(commonSecret, "'", "")
+			pod.ImagePullSecrets[i].Name = fmt.Sprintf("{{ .Values.%[1]s.%[2]s }}", name, "imagePullSecret")
+		} else {
+			pod.ImagePullSecrets[i].Name = appMeta.TemplatedName(s.Name)
+		}
 	}
 
 	return values, nil
