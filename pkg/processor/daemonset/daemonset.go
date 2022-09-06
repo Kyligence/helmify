@@ -1,4 +1,4 @@
-package deployment
+package daemonset
 
 import (
 	"fmt"
@@ -20,18 +20,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var deploymentGVC = schema.GroupVersionKind{
+var daemonsetGVC = schema.GroupVersionKind{
 	Group:   "apps",
 	Version: "v1",
-	Kind:    "Deployment",
+	Kind:    "DaemonSet",
 }
 
-var deploymentTempl, _ = template.New("deployment").Parse(
+var daemonsetTempl, _ = template.New("daemonset").Parse(
 	`{{- .Meta }}
 spec:
-{{- if .Replicas }}
-{{ .Replicas }}
-{{- end }}
   selector:
 {{ .Selector }}
   template:
@@ -46,22 +43,22 @@ const selectorTempl = `%[1]s
 {{- include "%[2]s.selectorLabels" . | nindent 6 }}
 %[3]s`
 
-// New creates processor for k8s Deployment resource.
+// New creates processor for k8s Daemonset resource.
 func New() helmify.Processor {
-	return &deployment{}
+	return &daemonset{}
 }
 
-type deployment struct{}
+type daemonset struct{}
 
-// Process k8s Deployment object into template. Returns false if not capable of processing given resource type.
-func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstructured) (bool, helmify.Template, error) {
-	if obj.GroupVersionKind() != deploymentGVC {
+// Process k8s Daemonset object into template. Returns false if not capable of processing given resource type.
+func (d daemonset) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstructured) (bool, helmify.Template, error) {
+	if obj.GroupVersionKind() != daemonsetGVC {
 		return false, nil, nil
 	}
-	depl := appsv1.Deployment{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &depl)
+	dae := appsv1.DaemonSet{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &dae)
 	if err != nil {
-		return true, nil, errors.Wrap(err, "unable to cast to deployment")
+		return true, nil, errors.Wrap(err, "unable to cast to daemonset")
 	}
 	meta, err := processor.ProcessObjMeta(appMeta, obj)
 	if err != nil {
@@ -71,18 +68,14 @@ func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstr
 	values := helmify.Values{}
 
 	name := appMeta.TrimName(obj.GetName())
-	replicas, err := processReplicas(name, &depl, &values)
-	if err != nil {
-		return true, nil, err
-	}
 
-	matchLabels, err := yamlformat.Marshal(map[string]interface{}{"matchLabels": depl.Spec.Selector.MatchLabels}, 0)
+	matchLabels, err := yamlformat.Marshal(map[string]interface{}{"matchLabels": dae.Spec.Selector.MatchLabels}, 0)
 	if err != nil {
 		return true, nil, err
 	}
 	matchExpr := ""
-	if depl.Spec.Selector.MatchExpressions != nil {
-		matchExpr, err = yamlformat.Marshal(map[string]interface{}{"matchExpressions": depl.Spec.Selector.MatchExpressions}, 0)
+	if dae.Spec.Selector.MatchExpressions != nil {
+		matchExpr, err = yamlformat.Marshal(map[string]interface{}{"matchExpressions": dae.Spec.Selector.MatchExpressions}, 0)
 		if err != nil {
 			return true, nil, err
 		}
@@ -91,15 +84,15 @@ func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstr
 	selector = strings.Trim(selector, " \n")
 	selector = string(yamlformat.Indent([]byte(selector), 4))
 
-	podLabels, err := yamlformat.Marshal(depl.Spec.Template.ObjectMeta.Labels, 8)
+	podLabels, err := yamlformat.Marshal(dae.Spec.Template.ObjectMeta.Labels, 8)
 	if err != nil {
 		return true, nil, err
 	}
 	podLabels += fmt.Sprintf("\n      {{- include \"%s.selectorLabels\" . | nindent 8 }}", appMeta.ChartName())
 
 	podAnnotations := ""
-	if len(depl.Spec.Template.ObjectMeta.Annotations) != 0 {
-		podAnnotations, err = yamlformat.Marshal(map[string]interface{}{"annotations": depl.Spec.Template.ObjectMeta.Annotations}, 6)
+	if len(dae.Spec.Template.ObjectMeta.Annotations) != 0 {
+		podAnnotations, err = yamlformat.Marshal(map[string]interface{}{"annotations": dae.Spec.Template.ObjectMeta.Annotations}, 6)
 		if err != nil {
 			return true, nil, err
 		}
@@ -108,7 +101,7 @@ func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstr
 	}
 
 	nameCamel := strcase.ToLowerCamel(name)
-	podValues, err := processPodSpec(nameCamel, appMeta, &depl.Spec.Template.Spec)
+	podValues, err := processPodSpec(nameCamel, appMeta, &dae.Spec.Template.Spec)
 	if err != nil {
 		return true, nil, err
 	}
@@ -118,17 +111,17 @@ func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstr
 	}
 
 	// replace PVC to templated name
-	for i := 0; i < len(depl.Spec.Template.Spec.Volumes); i++ {
-		vol := depl.Spec.Template.Spec.Volumes[i]
+	for i := 0; i < len(dae.Spec.Template.Spec.Volumes); i++ {
+		vol := dae.Spec.Template.Spec.Volumes[i]
 		if vol.PersistentVolumeClaim == nil {
 			continue
 		}
 		tempPVCName := appMeta.TemplatedName(vol.PersistentVolumeClaim.ClaimName)
-		depl.Spec.Template.Spec.Volumes[i].PersistentVolumeClaim.ClaimName = tempPVCName
+		dae.Spec.Template.Spec.Volumes[i].PersistentVolumeClaim.ClaimName = tempPVCName
 	}
 
 	// replace container resources with template to values.
-	specMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&depl.Spec.Template.Spec)
+	specMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dae.Spec.Template.Spec)
 	if err != nil {
 		return true, nil, err
 	}
@@ -164,36 +157,18 @@ func (d deployment) Process(appMeta helmify.AppMetadata, obj *unstructured.Unstr
 		values: values,
 		data: struct {
 			Meta           string
-			Replicas       string
 			Selector       string
 			PodLabels      string
 			PodAnnotations string
 			Spec           string
 		}{
 			Meta:           meta,
-			Replicas:       replicas,
 			Selector:       selector,
 			PodLabels:      podLabels,
 			PodAnnotations: podAnnotations,
 			Spec:           spec,
 		},
 	}, nil
-}
-
-func processReplicas(name string, deployment *appsv1.Deployment, values *helmify.Values) (string, error) {
-	if deployment.Spec.Replicas == nil {
-		return "", nil
-	}
-	replicasTpl, err := values.Add(int64(*deployment.Spec.Replicas), name, "replicas")
-	if err != nil {
-		return "", err
-	}
-	replicas, err := yamlformat.Marshal(map[string]interface{}{"replicas": replicasTpl}, 2)
-	if err != nil {
-		return "", err
-	}
-	replicas = strings.ReplaceAll(replicas, "'", "")
-	return replicas, nil
 }
 
 func processPodSpec(name string, appMeta helmify.AppMetadata, pod *corev1.PodSpec) (helmify.Values, error) {
@@ -233,11 +208,11 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 
 	err := unstructured.SetNestedField(*values, repo, name, containerName, "image", "repository")
 	if err != nil {
-		return c, errors.Wrap(err, "unable to set deployment value field")
+		return c, errors.Wrap(err, "unable to set daemonset value field")
 	}
 	err = unstructured.SetNestedField(*values, tag, name, containerName, "image", "tag")
 	if err != nil {
-		return c, errors.Wrap(err, "unable to set deployment value field")
+		return c, errors.Wrap(err, "unable to set daemonset value field")
 	}
 	for _, e := range c.Env {
 		if e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
@@ -277,7 +252,6 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 type result struct {
 	data struct {
 		Meta           string
-		Replicas       string
 		Selector       string
 		PodLabels      string
 		PodAnnotations string
@@ -287,7 +261,7 @@ type result struct {
 }
 
 func (r *result) Filename() string {
-	return "deployment.yaml"
+	return "daemonset.yaml"
 }
 
 func (r *result) Values() helmify.Values {
@@ -295,5 +269,5 @@ func (r *result) Values() helmify.Values {
 }
 
 func (r *result) Write(writer io.Writer) error {
-	return deploymentTempl.Execute(writer, r.data)
+	return daemonsetTempl.Execute(writer, r.data)
 }

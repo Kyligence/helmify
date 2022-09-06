@@ -24,9 +24,20 @@ func ProcessObjMeta(appMeta helmify.AppMetadata, obj *unstructured.Unstructured)
 	var err error
 	var labels, annotations string
 	if len(obj.GetLabels()) != 0 {
-		labels, err = yamlformat.Marshal(obj.GetLabels(), 4)
-		if err != nil {
-			return "", err
+		l := obj.GetLabels()
+		// provided by Helm
+		delete(l, "app.kubernetes.io/name")
+		delete(l, "app.kubernetes.io/instance")
+		delete(l, "app.kubernetes.io/version")
+		delete(l, "app.kubernetes.io/managed-by")
+		delete(l, "helm.sh/chart")
+
+		// Since we delete labels above, it is possible that at this point there are no more labels.
+		if len(l) > 0 {
+			labels, err = yamlformat.Marshal(l, 4)
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 	if len(obj.GetAnnotations()) != 0 {

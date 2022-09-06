@@ -1,6 +1,7 @@
 package helmify
 
 import (
+	"github.com/arttor/helmify/pkg/config"
 	"io"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,7 +27,7 @@ type Template interface {
 
 // Output - converts Template into helm chart on disk.
 type Output interface {
-	Create(chartName, chartDir string, templates []Template) error
+	Create(chartName, chartDir string, Crd bool, templates []Template) error
 }
 
 // AppMetadata handle common information about K8s objects in the chart.
@@ -45,4 +46,6 @@ type AppMetadata interface {
 	// TrimName trims common prefix from object name if exists.
 	// We trim common prefix because helm already using release for this purpose.
 	TrimName(objName string) string
+
+	Config() config.Config
 }

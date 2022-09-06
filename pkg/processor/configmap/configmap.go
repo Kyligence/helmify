@@ -172,6 +172,15 @@ func parseConfig(config map[string]interface{}, values helmify.Values, path []st
 		case []interface{}:
 			logrus.Warn("configmap: arrays not supported")
 		case map[string]interface{}:
+			if len(t) == 0 {
+				templated, err := values.Add(v, append(path, k)...)
+				if err != nil {
+					logrus.WithError(err).Error()
+					continue
+				}
+				config[k] = templated
+				continue
+			}
 			parseConfig(t, values, append(path, k))
 		case map[interface{}]interface{}:
 			c, ok := v.(map[string]interface{})

@@ -22,7 +22,7 @@ type appContext struct {
 func New(config config.Config, output helmify.Output) *appContext {
 	return &appContext{
 		config:  config,
-		appMeta: metadata.New(config.ChartName),
+		appMeta: metadata.New(config),
 		output:  output,
 	}
 }
@@ -67,7 +67,7 @@ func (c *appContext) CreateHelm(stop <-chan struct{}) error {
 		default:
 		}
 	}
-	return c.output.Create(c.config.ChartDir, c.config.ChartName, templates)
+	return c.output.Create(c.config.ChartDir, c.config.ChartName, c.config.Crd, templates)
 }
 
 func (c *appContext) process(obj *unstructured.Unstructured) (helmify.Template, error) {

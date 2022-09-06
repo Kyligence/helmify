@@ -19,6 +19,8 @@ type Config struct {
 	Verbose bool
 	// VeryVerbose set true to see WARN, INFO, and DEBUG logs.
 	VeryVerbose bool
+	// crd-dir set true to enable crd folder.
+	Crd bool
 }
 
 func (c *Config) Validate() error {
