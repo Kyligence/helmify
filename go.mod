@@ -1,4 +1,4 @@
-module github.com/Kyligence/helmify
+module github.com/arttor/helmify
 
 go 1.17
 
