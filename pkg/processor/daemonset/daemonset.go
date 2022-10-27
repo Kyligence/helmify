@@ -227,6 +227,10 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 	if err != nil {
 		return c, errors.Wrap(err, "unable to set daemonset value field")
 	}
+	err = unstructured.SetNestedField(*values, tag, name, containerName, "image", "imagePullPolicy")
+	if err != nil {
+		return c, errors.Wrap(err, "unable to set daemonset value field")
+	}
 	for _, e := range c.Env {
 		if e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
 			e.ValueFrom.SecretKeyRef.Name = appMeta.TemplatedName(e.ValueFrom.SecretKeyRef.Name)

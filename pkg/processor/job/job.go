@@ -202,11 +202,15 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 	c.ImagePullPolicy = corev1.PullPolicy(fmt.Sprintf("{{ .Values.%[1]s.%[2]s.image.imagePullPolicy | default \"Always\" | quote }}", name, containerName))
 	err := unstructured.SetNestedField(*values, repo, name, containerName, "image", "repository")
 	if err != nil {
-		return c, errors.Wrap(err, "unable to set deployment value field")
+		return c, errors.Wrap(err, "unable to set job value field")
 	}
 	err = unstructured.SetNestedField(*values, tag, name, containerName, "image", "tag")
 	if err != nil {
-		return c, errors.Wrap(err, "unable to set deployment value field")
+		return c, errors.Wrap(err, "unable to set job value field")
+	}
+	err = unstructured.SetNestedField(*values, tag, name, containerName, "image", "imagePullPolicy")
+	if err != nil {
+		return c, errors.Wrap(err, "unable to set job value field")
 	}
 	for _, e := range c.Env {
 		if e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
