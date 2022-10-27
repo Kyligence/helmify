@@ -240,7 +240,7 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 	if index < 0 {
 		return c, errors.New("wrong image format: " + c.Image)
 	}
-	repo, tag := c.Image[:index], c.Image[index+1:]
+	repo, tag, imagePullPolicy := c.Image[:index], c.Image[index+1:], string(c.ImagePullPolicy)
 	containerName := strcase.ToLowerCamel(c.Name)
 	c.Image = fmt.Sprintf("{{ .Values.%[1]s.%[2]s.image.repository }}:{{ .Values.%[1]s.%[2]s.image.tag | default .Chart.AppVersion }}", name, containerName)
 	c.ImagePullPolicy = corev1.PullPolicy(fmt.Sprintf("{{ .Values.%[1]s.%[2]s.image.imagePullPolicy | default \"Always\" | quote }}", name, containerName))
@@ -252,7 +252,7 @@ func processPodContainer(name string, appMeta helmify.AppMetadata, c corev1.Cont
 	if err != nil {
 		return c, errors.Wrap(err, "unable to set deployment value field")
 	}
-	err = unstructured.SetNestedField(*values, tag, name, containerName, "image", "imagePullPolicy")
+	err = unstructured.SetNestedField(*values, imagePullPolicy, name, containerName, "image", "imagePullPolicy")
 	if err != nil {
 		return c, errors.Wrap(err, "unable to set deployment value field")
 	}
